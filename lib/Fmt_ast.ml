@@ -488,9 +488,7 @@ let fmt_assign_arrow c =
   | `End_line -> fmt " <-@;<1 2>"
 
 let arrow_sep c ~parens : Fmt.s =
-  match c.conf.fmt_opts.break_separators.v with
-  | `Before -> if parens then "@;<1 1>-> " else "@ -> "
-  | `After -> " ->@;<1 0>"
+  if parens then "@;<1 1>-> " else "@ -> "
 
 let fmt_docstring_padded c doc =
   fmt_docstring c ~pro:(break c.conf.fmt_opts.doc_comments_padding.v 0) doc
@@ -785,7 +783,7 @@ and fmt_core_type c ?(box = true) ?pro ?(pro_space = true) ?constraint_ctx
       ( match pro with
       | Some pro when c.conf.fmt_opts.ocp_indent_compat.v ->
           fits_breaks ""
-            (String.make (Int.max 1 (indent - String.length pro)) ' ')
+            (String.make (Int.max 0 (indent - String.length pro)) ' ')
       | _ ->
           fmt_if_k
             Poly.(c.conf.fmt_opts.break_separators.v = `Before)
@@ -2057,7 +2055,7 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
         match xbody.ast.pexp_desc with Pexp_function _ -> true | _ -> false
       in
       let pre_body, body = fmt_body c ?ext xbody in
-      let default_indent = if Option.is_none eol then 2 else 1 in
+      let default_indent = 0 in
       let indent =
         Params.function_indent c.conf ~ctx ~default:default_indent
       in
@@ -4188,7 +4186,7 @@ and fmt_value_binding c ~rec_flag ?ext ?in_ ?epi ctx
     | Pexp_function _ ->
         Params.function_indent c.conf ~ctx
           ~default:c.conf.fmt_opts.let_binding_indent.v
-    | Pexp_fun _ -> c.conf.fmt_opts.let_binding_indent.v - 1
+    | Pexp_fun _ -> c.conf.fmt_opts.let_binding_indent.v
     | _ -> c.conf.fmt_opts.let_binding_indent.v
   in
   let f {attr_name= {loc; _}; _} =
