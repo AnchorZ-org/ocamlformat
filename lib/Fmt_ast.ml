@@ -1368,6 +1368,12 @@ and expression_width c xe =
        (fun () -> fmt_expression c xe)
        c.cmts )
 
+and expression_height c xe =
+  String.count ~f:(Char.(=) '\n')
+    (Cmts.preserve ~cache_key:(Expression xe.ast)
+       (fun () -> fmt_expression c xe)
+       c.cmts )
+
 and fmt_args_grouped ?epi:(global_epi = noop) c ctx args =
   let fmt_arg c ~first:_ ~last (lbl, arg) =
     let ({ast; _} as xarg) = sub_exp ~ctx arg in
@@ -1468,7 +1474,7 @@ and fmt_infix_op_args c ~parens xexp op_args =
   let groups =
     let width xe = expression_width c xe in
     let not_simple arg = not (is_simple c.conf width arg) in
-    let break (has_cmts, _, _, (_, arg1)) (_, _, _, (_, arg2)) =
+    let break (has_cmts, _, _, (_, _, arg1)) (_, _, _, (_, _, arg2)) =
       has_cmts || not_simple arg1 || not_simple arg2
     in
     let break_infix =
@@ -1480,7 +1486,7 @@ and fmt_infix_op_args c ~parens xexp op_args =
         | Some p when Prec.compare p InfixOp1 < 0 -> `Fit_or_vertical
         | Some _ ->
             if
-              List.exists op_args ~f:(fun (_, _, _, (_, {ast= arg; _})) ->
+              List.exists op_args ~f:(fun (_, _, _, (_, _, {ast= arg; _})) ->
                   match Ast.prec_ast (Exp arg) with
                   | Some p when Prec.compare p Apply <= 0 -> true
                   | Some _ -> false
@@ -1501,23 +1507,49 @@ and fmt_infix_op_args c ~parens xexp op_args =
         true
     | _ -> false
   in
-  let fmt_arg very_last xarg =
-    let parens =
-      ((not very_last) && exposed_right_exp Ast.Non_apply xarg.ast)
-      || parenze_exp xarg
-    in
-    let box =
-      match xarg.ast.pexp_desc with
-      | Pexp_fun _ | Pexp_function _ -> Some false
-      | _ -> None
-    in
-    fmt_expression c ?box ~parens xarg
+  let fmt_arg very_last op_lit xarg =
+    let iparens = exposed_right_exp Ast.Non_apply xarg.ast in
+    let continue parens box =
+      fmt_expression c ?box ~parens xarg in
+    let expr_kind = match xarg.ast.pexp_desc with
+      | Pexp_fun _ | Pexp_function _ -> `fn
+      | _ -> `other in
+    let has_prefix p s =
+      let plen = String.length p in
+      (String.length s >= plen) && String.(prefix s plen = p) in
+    match expr_kind, op_lit with
+    | `fn, Some id when has_prefix ">>" id ->
+       let parens =
+         if true && very_last
+         then false else iparens in
+       let parens = parens || parenze_exp xarg in
+       let indent_wrap = if parens then 2 else 0 in
+       fmt_expression c ~box:false ~parens ~indent_wrap xarg
+    | `fn, _ ->
+      let xargs, xbody = Sugar.fun_ c.cmts xarg in
+      let parens_r =
+        is_simple c.conf (expression_width c) xbody
+        || parenze_exp xarg in
+      let short_fn = not parens_r && expression_width c xarg <= (min 52 (c.conf.fmt_opts.margin.v * 2 / 3)) in
+      let parens_r =
+        let height() = expression_height c xarg in
+        parens_r && (not parens)
+        || (height() > 1) in
+      let parens = parens_r || ((not very_last) && iparens) in
+      fmt_expression c ~box:false ~parens ~indent_wrap:2 xarg
+    | _ ->
+     let parens =
+       ((not very_last) && iparens)
+       || parenze_exp xarg
+     in
+     hovbox_if (not very_last) 2
+       (continue parens None)
   in
   let fmt_op_arg_group ~first:first_grp ~last:last_grp args =
     let indent = if first_grp && parens then -2 else 0 in
     hovbox indent
       (list_fl args
-         (fun ~first ~last (_, cmts_before, cmts_after, (op, xarg)) ->
+         (fun ~first ~last (_, cmts_before, cmts_after, (op, op_lit, xarg)) ->
            let very_first = first_grp && first in
            let very_last = last_grp && last in
            cmts_before
@@ -1527,7 +1559,7 @@ and fmt_infix_op_args c ~parens xexp op_args =
                  | e when very_last && is_not_indented e -> fmt "@ "
                  | _ -> fmt_if (not very_first) " " )
                $ cmts_after
-               $ hovbox_if (not very_last) 2 (fmt_arg very_last xarg) )
+               $ fmt_arg very_last op_lit xarg )
            $ fmt_if_k (not last) (break 1 0) ) )
     $ fmt_if_k (not last_grp) (break 1 0)
   in
@@ -1702,7 +1734,7 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
   | Pexp_infix
       (({txt=id; _} as op), l, ({pexp_desc= Pexp_fun _; pexp_loc; pexp_attributes; _} as r))
     when (not c.conf.fmt_opts.break_infix_before_func.v)
-         || ((String.length id >= 2) && String.(sub id ~pos:0 ~len:2 = ">>")) ->
+         || ((String.length id >= 2) && String.(prefix id 2 = ">>")) ->
       (* side effects of Cmts.fmt c.cmts before Sugar.fun_ is important *)
       let cmts_before = Cmts.fmt_before c pexp_loc in
       let cmts_after = Cmts.fmt_after c pexp_loc in
@@ -1784,7 +1816,7 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
       let infix_op_args =
         List.map op_args ~f:(fun (op, arg) ->
             match op with
-            | Some op ->
+            | Some ({txt; _} as op) ->
                 (* side effects of Cmts.fmt_before before fmt_expression is
                    important *)
                 let has_cmts = Cmts.has_before c.cmts op.loc in
@@ -1802,8 +1834,8 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
                   $ Cmts.fmt_before ~adj c arg.ast.pexp_loc
                 in
                 let fmt_op = fmt_str_loc c op in
-                (has_cmts, fmt_before_cmts, fmt_after_cmts, (fmt_op, arg))
-            | None -> (false, noop, noop, (noop, arg)) )
+                (has_cmts, fmt_before_cmts, fmt_after_cmts, (fmt_op, Some txt, arg))
+            | None -> (false, noop, noop, (noop, None, arg)) )
       in
       hvbox_if outer_wrap 0
         (Params.parens_if outer_wrap c.conf
@@ -2010,7 +2042,7 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
         ( hvbox indent_wrap
             (fmt_infix_op_args c ~parens xexp
                (List.mapi l ~f:(fun i e ->
-                    (false, noop, noop, (fmt_if (i > 0) "::", sub_exp ~ctx e)) )
+                    (false, noop, noop, (fmt_if (i > 0) "::", Some "::", sub_exp ~ctx e)) )
                ) )
         $ fmt_atrs )
   | Pexp_construct (({txt= Lident "::"; loc= _} as lid), Some arg) ->
@@ -2069,10 +2101,11 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
                        0 (fmt_fun_args c xargs)
                    $ fmt_opt fmt_cstr $ fmt "@ " )
                $ str "->" $ pre_body )
-           $ fmt "@ " $ body ) )
+           $ fmt "@ " $ fmt_if_k (not box) (if_newline (String.make indent_wrap ' ')) $ body ) )
   | Pexp_function cs ->
       let indent = Params.function_indent c.conf ~ctx in
-      Params.Exp.wrap c.conf ~parens ~disambiguate:true ~fits_breaks:false
+      let indent = if box then indent else indent + indent_wrap in
+      Params.Exp.wrap c.conf ~parens ~disambiguate:false ~fits_breaks:false
       @@ Params.Align.function_ c.conf ~parens ~ctx0 ~self:exp
       @@ ( hvbox 2
              ( str "function"
