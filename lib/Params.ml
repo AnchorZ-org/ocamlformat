@@ -242,7 +242,7 @@ let get_record_expr (c : Conf.t) =
         { box
         ; sep_before= noop
         ; sep_after_non_final= fmt ";@;<1 2>"
-        ; sep_after_final= fmt_if_k dock (fits_breaks ~level:0 "" ";") } )
+        ; sep_after_final= fits_breaks ~level:0 "" ";" } )
   , {break_after_with= break 1 2} )
 
 let box_collec (c : Conf.t) =
@@ -279,7 +279,7 @@ let collection_expr (c : Conf.t) ~space_around opn cls =
       ; sep_after_non_final=
           fmt_or_k dock (fmt ";@;<1 0>")
             (char ';' $ break 1 (String.length opn + 1))
-      ; sep_after_final= fmt_if_k dock (fits_breaks ~level:1 "" ";") }
+      ; sep_after_final= fits_breaks ~level:1 "" ";" }
 
 let get_list_expr (c : Conf.t) =
   collection_expr c ~space_around:c.fmt_opts.space_around_lists.v "[" "]"
