@@ -1775,10 +1775,11 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
                $ body $ fmt_if parens_r ")" $ cmts_after ) )
         $ fmt_atrs )
   | Pexp_infix
-      ( op
+      ( ({txt=id; _} as op)
       , l
       , ({pexp_desc= Pexp_function cs; pexp_loc; pexp_attributes; _} as r) )
-    when not c.conf.fmt_opts.break_infix_before_func.v ->
+    when (not c.conf.fmt_opts.break_infix_before_func.v)
+         || ((String.length id >= 2) && String.(prefix id 2 = ">>"))->
       let cmts_before = Cmts.fmt_before c pexp_loc in
       let cmts_after = Cmts.fmt_after c pexp_loc in
       let xr = sub_exp ~ctx r in
@@ -1788,7 +1789,7 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
         (hvbox indent
            ( hvbox 0
                ( fmt_expression c (sub_exp ~ctx l)
-               $ fmt "@;"
+               $ fits_breaks " " ~hint:(1000, 0) ""
                $ hovbox 2
                    ( hvbox 0
                        ( fmt_str_loc c op $ fmt "@ " $ cmts_before
