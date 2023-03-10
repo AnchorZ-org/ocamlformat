@@ -1631,7 +1631,7 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
            $ fmt "@ ;@ "
            $ list grps " ;@;<1000 0>" fmt_grp ) )
   | Pexp_infix
-      ( {txt= "|>"; loc}
+      ( {txt; loc}
       , e0
       , { pexp_desc=
             Pexp_extension
@@ -1640,14 +1640,15 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
                   [ ( { pstr_desc=
                           Pstr_eval (({pexp_desc= Pexp_fun _; _} as retn), [])
                       ; pstr_loc= _ } as pld ) ] )
-        ; _ } ) ->
+        ; _ } )
+       when String.(prefix txt 1 = "|" && suffix txt 1 = ">") ->
       let xargs, xbody = Sugar.fun_ c.cmts (sub_exp ~ctx:(Str pld) retn) in
       let fmt_cstr, xbody = type_constr_and_body c xbody in
       hvbox 0
         (Params.Exp.wrap c.conf ~parens
            ( fmt_expression c (sub_exp ~ctx e0)
            $ fmt "@\n"
-           $ Cmts.fmt c loc (fmt "|>@\n")
+           $ Cmts.fmt c loc (str txt $ fmt "@\n")
            $ hvbox c.conf.fmt_opts.extension_indent.v
                (wrap "[" "]"
                   ( str "%"
@@ -1699,8 +1700,9 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
         $ hvbox 0 (fmt_str_loc c op)
         $ fmt_expression c (sub_exp ~ctx r) )
   | Pexp_infix
-      (op, l, ({pexp_desc= Pexp_fun _; pexp_loc; pexp_attributes; _} as r))
-    when not c.conf.fmt_opts.break_infix_before_func.v ->
+      (({txt=id; _} as op), l, ({pexp_desc= Pexp_fun _; pexp_loc; pexp_attributes; _} as r))
+    when (not c.conf.fmt_opts.break_infix_before_func.v)
+         || ((String.length id >= 2) && String.(sub id ~pos:0 ~len:2 = ">>")) ->
       (* side effects of Cmts.fmt c.cmts before Sugar.fun_ is important *)
       let cmts_before = Cmts.fmt_before c pexp_loc in
       let cmts_after = Cmts.fmt_after c pexp_loc in
@@ -1734,7 +1736,10 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
                                (fmt_fun_args c xargs $ fmt_opt fmt_cstr)
                            $ fmt "@ ->" ) )
                    $ pre_body )
-               $ fmt_or followed_by_infix_op "@;<1000 0>" "@ "
+               $ fmt_or
+                   (followed_by_infix_op
+                    || ((String.length id >= 2) && String.(sub id ~pos:0 ~len:2 = ">>")))
+                   "@;<1000 0>" "@ "
                $ body $ fmt_if parens_r ")" $ cmts_after ) )
         $ fmt_atrs )
   | Pexp_infix
