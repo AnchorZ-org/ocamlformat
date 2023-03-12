@@ -3210,8 +3210,7 @@ and fmt_label_declaration c ctx ?(last = false) decl =
     | `Before -> noop
     | `After ->
         fmt_or_k last
-          (fmt_if_k c.conf.fmt_opts.dock_collection_brackets.v
-             (fits_breaks ~level:5 "" ";") )
+          (fits_breaks ~level:5 "" ";")
           (str ";")
   in
   hovbox 0
