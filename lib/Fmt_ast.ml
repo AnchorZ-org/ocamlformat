@@ -1925,7 +1925,7 @@ and fmt_expression c ?(box = true) ?pro ?epi ?eol ?parens ?(indent_wrap = 0)
                        $ Cmts.fmt_before c pexp_loc
                        $ fmt_label lbl ":" $ str "(function"
                        $ fmt_attributes c ~pre:Blank eN.pexp_attributes )
-                   $ fmt "@ " $ leading_cmt
+                   $ fits_breaks ~hint:(0, -2) " " ""
                    $ hvbox 0
                        ( fmt_pattern c ~pro:(if_newline "| ")
                            (sub_pat ~ctx pc_lhs)
