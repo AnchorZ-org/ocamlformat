@@ -241,6 +241,40 @@ let janestreet_profile from =
   ; wrap_comments= elt false
   ; wrap_fun_args= elt false }
 
+let anzdz_profile from =
+  let elt content = Elt.make content from in
+  { (conventional_profile from) with
+    match_indent = elt 0
+  ; assignment_operator = elt `End_line
+  ; break_before_in = elt `Auto
+  ; break_cases = elt `Fit_or_vertical
+  ; break_collection_expressions = elt `Fit_or_vertical
+  ; break_fun_decl = elt `Smart
+  ; break_fun_sig = elt `Smart
+  ; break_infix_before_func = elt true
+  ; break_sequences = elt false
+  ; break_struct = elt true (* `Force *)
+  ; break_separators = elt `After
+  ; cases_exp_indent = elt 2
+  ; cases_matching_exp_indent = elt `Compact
+  ; doc_comments = elt `After_when_possible
+  ; dock_collection_brackets = elt false
+  ; margin = elt 82
+  ; module_item_spacing = elt `Preserve
+  ; nested_match = elt `Wrap
+  ; let_and = elt `Sparse
+  ; let_binding_indent = elt 2
+  ; function_indent = elt 2
+  ; if_then_else = elt `Keyword_first
+  ; parens_ite = elt true
+  ; parens_tuple = elt `Multi_line_only
+  ; parse_docstrings = elt true
+  ; wrap_comments = elt true
+  ; type_decl = elt `Sparse
+  ; exp_grouping = elt `Preserve
+  ; ocp_indent_compat = elt true
+  }
+
 let default =
   let elt content = Elt.make content `Default in
   { fmt_opts= default_profile `Default
@@ -307,7 +341,9 @@ let profile =
          legibility; Attention has been given to making some syntactic \
          gotchas visually obvious."
     ; Decl.Value.make ~name:"janestreet" `janestreet
-        "The $(b,janestreet) profile is used at Jane Street." ]
+        "The $(b,janestreet) profile is used at Jane Street."
+    ; Decl.Value.make ~name:"anzdz" `anzdz
+        "The $(b,anzdz) profile is used at AnchorZ Inc." ]
   in
   Decl.choice ~names ~all ~default ~doc ~kind:Decl.Formatting
     ~removed_values:
@@ -321,6 +357,7 @@ let profile =
         | `conventional -> "conventional"
         | `ocamlformat -> "ocamlformat"
         | `janestreet -> "janestreet"
+        | `anzdz -> "anzdz"
       in
       let from_p =
         let ufrom =
@@ -332,10 +369,17 @@ let profile =
       in
       let p =
         ( match p with
+        | `anzdz -> ()
+        | _ ->
+           Format.eprintf
+             "WARNING! this version of ocamlformat is modified to support \
+              profile=anzdz and other profiles would likely not work properly@." );
+        ( match p with
         | `default -> default_profile
         | `conventional -> conventional_profile
         | `ocamlformat -> ocamlformat_profile
-        | `janestreet -> janestreet_profile )
+        | `janestreet -> janestreet_profile
+        | `anzdz -> anzdz_profile )
           from_p
       in
       {conf with profile= elt; fmt_opts= p} )
