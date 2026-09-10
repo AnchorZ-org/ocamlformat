@@ -12,12 +12,8 @@
 module Error = Conf_t.Error
 
 let ocaml_version_conv =
-  let parse x =
-    match Ocaml_version.of_string x with
-    | Ok x -> `Ok x
-    | Error (`Msg x) -> `Error x
-  in
-  (parse, Ocaml_version.pp)
+  (* cmdliner >= 1.1 conv API (required by cmdliner 2.x) *)
+  Cmdliner.Arg.conv (Ocaml_version.of_string, Ocaml_version.pp)
 
 type typ = Int | Bool | Ocaml_version | Choice of string list
 

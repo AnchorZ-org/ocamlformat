@@ -166,17 +166,20 @@ let check =
 let inputs =
   let docv = "SRC" in
   let file_or_dash =
-    let parse, print = Arg.non_dir_file in
-    let print fmt = function
-      | Stdin -> print fmt "<standard input>"
-      | File x -> print fmt x
-    in
+    (* cmdliner >= 1.1 conv API (required by cmdliner 2.x, where the legacy
+       pair representation was removed) *)
     let parse = function
-      | "-" -> `Ok Stdin
+      | "-" -> Ok Stdin
       | s -> (
-        match parse s with `Ok x -> `Ok (File x) | `Error x -> `Error x )
+        match Arg.conv_parser Arg.non_dir_file s with
+        | Ok x -> Ok (File x)
+        | Error _ as e -> e )
     in
-    (parse, print)
+    let print fmt = function
+      | Stdin -> Format.pp_print_string fmt "<standard input>"
+      | File x -> Arg.conv_printer Arg.non_dir_file fmt x
+    in
+    Arg.conv (parse, print)
   in
   let doc =
     "Input files. At least one is required, and exactly one without \
@@ -523,7 +526,8 @@ let update_using_env conf =
 let discard_formatter =
   Format.(
     formatter_of_out_functions
-      { out_string= (fun _ _ _ -> ())
+      { (Format.get_formatter_out_functions ()) with
+        out_string= (fun _ _ _ -> ())
       ; out_flush= (fun () -> ())
       ; out_newline= (fun () -> ())
       ; out_spaces= (fun _ -> ())
