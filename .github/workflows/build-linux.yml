@@ -17,6 +17,7 @@ jobs:
         ocaml-compiler:
           # Don't include every versions. OCaml-CI already covers that
           - 5.4.x
+          - 5.5.x
 
     runs-on: ubuntu-latest
 
@@ -51,6 +52,9 @@ jobs:
         run: opam exec -- dune build @gen_manpage --auto-promote
 
       - name: Upload binary
+        # Only upload from a single matrix job: the artifact name is shared
+        # across the matrix and upload-artifact v4 rejects duplicate names.
+        if: ${{ matrix.ocaml-compiler == '5.4.x' }}
         # Using a specific version because of https://github.com/actions/upload-artifact/issues/590
         uses: actions/upload-artifact@v4.3.4
         with:

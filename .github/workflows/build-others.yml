@@ -21,6 +21,7 @@ jobs:
         ocaml-compiler:
           # Don't include every versions. OCaml-CI already covers that
           - 5.4.x
+          - 5.5.x
 
     runs-on: ${{ matrix.os }}
 
